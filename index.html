@@ -1,0 +1,122 @@
+<head>
+  <style>
+    .objkt {
+      margin: 1em;
+    }
+    #objktList {
+      display: flex;
+      flex-wrap: wrap;
+    }
+  </style>
+</head>
+<body>
+  <p>I will not maintain this code</p>
+  <button onclick="prev()">PREV</button>
+  <button onclick="next()">NEXT</button>
+  <span id="page"></span>
+<div id="list">
+
+</div>
+</body>
+<script>
+  let swaps = []
+  const target = document.getElementById('list');
+
+  const queryString = window.location.search;
+  const urlParams = new URLSearchParams(queryString);
+  const address = urlParams.get('address');
+
+  let page = 0;
+  let pageLimit = 4;
+  let list;
+  let timeouts = {};
+
+  function newElement(id, text = undefined, kind = 'div') {
+    const div = document.createElement(kind);
+    div.innerText = text ? text : '';
+    div.id = id;
+    return div;
+  }
+
+  function next() {
+    page++;
+    fillPage();
+  }
+
+  function prev() {
+    page--;
+    fillPage();
+  }
+
+  function emptyPage() {
+    list.innerHTML = '';
+  }
+
+  function fillPage() {
+    try {
+      emptyPage();
+      for (timeout in timeouts) {
+        window.clearTimeout(timeouts[timeout]);
+      }
+      for (let i = page * pageLimit; i < (page * pageLimit) + pageLimit; i++) {
+        swap = swaps[i];
+        if (swap.type !== 'transaction') {
+          return;
+        }
+        const info = swap.parameter.value;
+        const amount = newElement('', `swap amnt: ${info.objkt_amount}`);
+        const objktId = newElement('', `id: ${info.objkt_id}`);
+        const objktLink = newElement('', undefined, 'a');
+        const price = newElement('', `xtz: ${info.xtz_per_objkt / 1_000_000}`);
+
+        objktLink.href = `https://www.hicetnunc.xyz/objkt/${info.objkt_id}`;
+        objktLink.target = '_blank';
+        objktLink.appendChild(objktId);
+
+        const target = newElement('', `to: ${swap.target.alias}`);
+
+        const container = newElement('');
+        container.className = 'objkt';
+        container.appendChild(objktLink);
+        container.appendChild(price);
+        container.appendChild(amount);
+        container.appendChild(target);
+
+        const iFrame = newElement('', undefined, 'iframe');
+        iFrame.src = objktLink.href;
+        iFrame.style.width = '360px';
+        iFrame.style.height = '400px';
+
+        timeouts[info.objkt_id] = window.setTimeout(() => {
+          delete timeouts[info.objkt_id];
+          container.appendChild(iFrame);
+        }, 1000)
+
+        list.appendChild(container);
+      }
+    } catch (e) {
+      console.error(e);
+      window.alert(e);
+    }
+    document.getElementById('page').innerText = page;
+  }
+
+  fetch(`https://api.tzkt.io/v1/accounts/${address}/operations?entrypoint=swap&status=applied`)
+  .then((r) => {
+    if (r.status >= 400) {
+      throw new Error("status " + r.status)
+    }
+    return r.json();
+  })
+  .then((j) => {
+    console.log(j);
+    list = newElement('objktList');
+    document.body.appendChild(list);
+    swaps = j;
+    fillPage();
+  })
+  .catch((e) => {
+    console.error(e);
+    window.alert(e)
+  })
+</script>
